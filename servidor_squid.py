@@ -36,7 +36,7 @@ def cliente(socket,addr):
 
 		mensaje_env = json.dumps({"respuesta":cache_HTTP})
 
-		cabecera = f"HTTP/1.1 200 OK\r\nContent-type: application/json\r\nCache-Control: public, max-age=216000,immutable\r\nContent-length: {len(mensaje_env)}\r\nAccess-Control-Allow-Origin:*\r\nConnection: close\r\n\r\n"
+		cabecera = f"HTTP/1.1 200 OK\r\nContent-type: tetx/event-stream\r\nCache-Control: no-cache\r\nContent-length: {len(mensaje_env)}\r\nAccess-Control-Allow-Origin:*\r\nConnection: close\r\n\r\n"
 
 		socket.sendall(cabecera.encode()+mensaje_env.encode())
 
