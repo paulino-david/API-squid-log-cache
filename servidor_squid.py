@@ -28,6 +28,11 @@ cache_HTTP = [ordenar(fila) for fila in cache if "|" in fila]
 ######################### Seccion de hilo (threading) #################################
 import json
 
+## Libreria para crear ETags
+import hashlib
+
+######################## Crear un ETag #########################
+
 def cliente(socket,addr):
 
 	with socket:
@@ -36,7 +41,9 @@ def cliente(socket,addr):
 
 		mensaje_env = json.dumps({"respuesta":cache_HTTP})
 
-		cabecera = f"HTTP/1.1 200 OK\r\nContent-type: tetx/event-stream\r\nCache-Control: no-cache\r\nContent-length: {len(mensaje_env)}\r\nAccess-Control-Allow-Origin:*\r\nConnection: close\r\n\r\n"
+		ETag = hashlib.md5(mensaje_env).hexdigest()
+
+		cabecera = f"HTTP/1.1 200 OK\r\nETag:{ETag}\r\nContent-type: tetx/event-stream\r\nCache-Control: no-cache\r\nContent-length: {len(mensaje_env)}\r\nAccess-Control-Allow-Origin:*\r\nConnection: close\r\n\r\n"
 
 		socket.sendall(cabecera.encode()+mensaje_env.encode())
 
