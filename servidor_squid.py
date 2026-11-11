@@ -1,11 +1,14 @@
 
 ############################ Seccion de lectura del  archivo log de la cache #################################
+ETag = None
 
-with open ("/var/log/squid/cache.log", "r", encoding="utf-8") as log_cache:
+def leer_cache():
 
-	cache = log_cache.read()
+	with open ("/var/log/squid/cache.log", "r", encoding="utf-8") as log_cache:
 
-cache=cache.split("\n")
+		cache = log_cache.read()
+
+	return cache.split("\n")
 
 #Lista de logs a enviar bien or estructurado con metodos de cadena
 
@@ -13,7 +16,7 @@ def ordenar(fila):
 
 	if "|" in fila:
 
-		cabecera,mensaje = fila.split("|",1) 
+		cabecera,mensaje = fila.split("|",1)
 
 		fecha = cabecera[:10]
 		tiempo = cabecera[11:19]
@@ -23,33 +26,61 @@ def ordenar(fila):
 
 	return {"fecha":fila[:10],"tiempo":fila[11:19],"proceso":"","mensaje":fila[20:]}
 
-cache_HTTP = [ordenar(fila) for fila in cache if "|" in fila]
+
+######################## Generar ETag ###########################
+
+def generar_ETag():
+
+	archivo = "\n".join(leer_cache()).encode()
+
+	new_ETag = '"'+hashlib.md5(archivo).hexdigest()+'"'
+
+	return new_ETag
 
 ######################### Seccion de hilo (threading) #################################
 import json
 
+
 ## Libreria para crear ETags
 import hashlib
 
-######################## Crear un ETag #########################
-
+######################## Crear un ETag #######################
 def cliente(socket,addr):
+
+	global ETag
 
 	with socket:
 
+		cache_HTTP = [ordenar(fila) for fila in leer_cache() if "|" in fila]
+
 		mensaje_recv= socket.recv(1024).decode()
+		cabecera_cliente = mensaje_recv.split("\r\n")
 
 		mensaje_env = json.dumps({"respuesta":cache_HTTP})
+		ETag_cliente = cabecera_cliente[-3].split(":",1)
 
-		ETag = hashlib.md5(mensaje_env).hexdigest()
+		if "If-None-Match" in ETag_cliente:
 
-		cabecera = f"HTTP/1.1 200 OK\r\nETag:{ETag}\r\nContent-type: tetx/event-stream\r\nCache-Control: no-cache\r\nContent-length: {len(mensaje_env)}\r\nAccess-Control-Allow-Origin:*\r\nConnection: close\r\n\r\n"
+			if ETag_cliente[1].strip()==ETag.strip():
+
+				cabecera = f"""HTTP/1.1 304 Not-Modified\r\nContent-type: application/json\r\nCache-Control:public, no-cache\r\nContent-length: {len(mensaje_env)}\r\nAccess-Control-Expose-Headers: {ETag.strip()}\r\nAccess-Control-Allow-Origin:*\r\nConnection: close\r\n"""
+				socket.sendall(cabecera.encode())
+
+				return
+
+		ETag = generar_ETag()
+
+		cabecera = f"""HTTP/1.1 200 OK\r\nETag:{ETag}\r\nContent-type: application/json\r\nCache-Control:public, no-cache\r\nContent-length: {len(mensaje_env)}\r\nAccess-Control-Expose-Headers: {ETag.strip()}\r\nAccess-Control-Allow-Origin:*\r\nConnection: close\r\n\r\n"""
 
 		socket.sendall(cabecera.encode()+mensaje_env.encode())
 
 		print("Cliente:",addr)
 
-#		print("Mesnaje_recv:",mensaje_recv)
+		cabecera_cliente = mensaje_recv.split("\r\n")
+
+		print("Mesnaje_recv:",cabecera_cliente)
+
+		print("\nMensaje_env:",cabecera)
 
 #		print("\nMensaje_env:",cabecera+mensaje_env,"\n\n")
 
